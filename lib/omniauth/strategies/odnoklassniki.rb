@@ -37,6 +37,13 @@ module OmniAuth
         { :raw_info => raw_info }
       end
 
+      def request_phase
+        patched_params = authorize_params.to_hash
+        patched_url = callback_url + "?state=#{patched_params.delete("state")}"
+
+        redirect client.auth_code.authorize_url({:redirect_uri => patched_url}.merge(patched_params))
+      end
+
       def callback_url
         if options.authorize_options.respond_to? :callback_url
           options.authorize_options.callback_url
@@ -46,9 +53,10 @@ module OmniAuth
       end
 
       def build_access_token
-        super.tap do |token|
-          token.options.merge!(access_token_options)
-        end
+        verifier = request.params['code']
+        token = client.auth_code.get_token(verifier, {:redirect_uri => callback_url + "?state=#{request.params["state"]}"}.merge(token_params.to_hash(:symbolize_keys => true)))
+        token.options.merge!(access_token_options)
+        token
       end
 
       def access_token_options
